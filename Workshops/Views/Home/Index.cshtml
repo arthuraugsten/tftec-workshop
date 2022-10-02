@@ -1,0 +1,30 @@
+﻿@model IEnumerable<WorkshopViewModel>
+@{
+    ViewData["Title"] = "Home Page";
+}
+<div>
+    <div class="text-center">
+        <h3 class="display-4">Bem-vindo!</h3>
+        <h1 class="display-6">Está será nossa programação para os próximos workshops.</h1>
+    </div>
+
+    <div class="text-center">
+        <table class="table table-striped">
+            <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Nome</th>
+                    <th scope="col">Quando</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.Name</td>
+                        <td>@item.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
