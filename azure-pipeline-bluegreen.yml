@@ -46,7 +46,7 @@ stages:
     condition: and(succeeded('Build'), ${{ variables.createArtifact }})
     jobs:
       - deployment: App
-        environment: "sample"
+        environment: "WORKSHOP"
         strategy:
           runOnce:
             preDeploy:
@@ -58,7 +58,7 @@ stages:
                     Action: "Start Azure App Service"
                     WebAppName: "APP-WORKSHOP01"
                     SpecifySlotOrASE: true
-                    ResourceGroupName: "RG-SAMPLE"
+                    ResourceGroupName: "RG-WORKSHOP"
                     Slot: "stage"
             deploy:
               steps:
@@ -69,7 +69,7 @@ stages:
                     appType: "webAppLinux"
                     WebAppName: "APP-WORKSHOP01"
                     deployToSlotOrASE: true
-                    ResourceGroupName: "RG-SAMPLE"
+                    ResourceGroupName: "RG-WORKSHOP"
                     SlotName: "stage"
                     packageForLinux: "$(Pipeline.Workspace)/$(Build.Repository.Name)/*.zip"
             postRouteTraffic:
@@ -92,7 +92,7 @@ stages:
                       Action: "Stop Azure App Service"
                       WebAppName: "APP-WORKSHOP01"
                       SpecifySlotOrASE: true
-                      ResourceGroupName: "RG-SAMPLE"
+                      ResourceGroupName: "RG-WORKSHOP"
                       Slot: "stage"
               success:
                 steps:
@@ -101,7 +101,7 @@ stages:
                       azureSubscription: "workshop-svc-conn"
                       Action: "Swap Slots"
                       WebAppName: "APP-WORKSHOP01"
-                      ResourceGroupName: "RG-SAMPLE"
+                      ResourceGroupName: "RG-WORKSHOP"
                       SourceSlot: "stage"
 
                   - task: AzureAppServiceManage@0
@@ -111,5 +111,5 @@ stages:
                       Action: "Start Azure App Service"
                       WebAppName: "APP-WORKSHOP01"
                       SpecifySlotOrASE: true
-                      ResourceGroupName: "RG-SAMPLE"
+                      ResourceGroupName: "RG-WORKSHOP"
                       Slot: "stage"
