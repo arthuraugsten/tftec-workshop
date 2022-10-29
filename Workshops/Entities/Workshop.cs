@@ -13,4 +13,5 @@ public sealed class Workshop
     public string Name { get; private set; }
     public DateTime Date { get; private set; }
 
+    public void CleanName() => Name = string.Empty;
 }
