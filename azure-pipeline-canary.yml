@@ -45,10 +45,11 @@ stages:
     displayName: "Deploy App"
     condition: and(succeeded('Build'), ${{ variables.createArtifact }})
     jobs:
-      - deployment: App
-        environment: "sample"
+      - deployment: "App"
+        environment: "workshop"
         strategy:
-          runOnce:
+          canary:
+            increments: [10, 20]
             preDeploy:
               steps:
                 - task: AzureAppServiceManage@0
@@ -60,8 +61,7 @@ stages:
                     SpecifySlotOrASE: true
                     ResourceGroupName: "RG-SAMPLE"
                     Slot: "stage"
-            deploy:
-              steps:
+
                 - task: AzureRmWebAppDeployment@4
                   inputs:
                     ConnectionType: "AzureRM"
@@ -72,19 +72,32 @@ stages:
                     ResourceGroupName: "RG-SAMPLE"
                     SlotName: "stage"
                     packageForLinux: "$(Pipeline.Workspace)/$(Build.Repository.Name)/*.zip"
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: "workshop-svc-conn"
+                    scriptType: "bash"
+                    scriptLocation: "inlineScript"
+                    inlineScript: "az webapp traffic-routing set --distribution stage=$(strategy.increment) --name APP-WORKSHOP01 --resource-group RG-SAMPLE"
             postRouteTraffic:
               steps:
                 - script: |
-                    status_code=$(curl --write-out %{http_code} --silent --output /dev/null https://app-workshop01-stage.azurewebsites.net)
+                    for counter in $(seq 1 20); do
+                      status_code=$(curl --write-out %{http_code} --silent --output /dev/null https://app-workshop01.azurewebsites.net)
 
-                    if [[ "$status_code" -ne 200 ]] ; then
-                      echo "##vso[task.logissue type=error]Website cannot be swapped. It has an unhealthy status."
-                      exit 1
-                    fi
+                      if [[ "$status_code" -ne 200 ]] ; then
+                        echo "##vso[task.logissue type=error]Website cannot be swapped. It has an unhealthy status."
+                        exit 1
+                      fi
+                    done
                   displayName: "Validating site status"
             on:
               failure:
                 steps:
+                  - script: |
+                      az webapp traffic-routing clear --name APP-WORKSHOP01 --resource-group RG-SAMPLE
+
                   - task: AzureAppServiceManage@0
                     displayName: "Stoping App Service"
                     inputs:
@@ -103,6 +116,9 @@ stages:
                       WebAppName: "APP-WORKSHOP01"
                       ResourceGroupName: "RG-SAMPLE"
                       SourceSlot: "stage"
+
+                  - script: |
+                      az webapp traffic-routing clear --name APP-WORKSHOP01 --resource-group RG-SAMPLE
 
                   - task: AzureAppServiceManage@0
                     displayName: "Stop App Service"

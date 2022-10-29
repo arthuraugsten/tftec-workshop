@@ -1,0 +1,110 @@
+trigger:
+  - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  createArtifact: ne(variables['Build.Reason'], 'PullRequest')
+
+stages:
+  - stage: "Build"
+    displayName: "Build"
+    jobs:
+      - job: "Build"
+        steps:
+          - task: DotNetCoreCLI@2
+            displayName: "Building App"
+            inputs:
+              command: "build"
+              projects: "*.sln"
+              arguments: "--configuration Release"
+
+          - task: DotNetCoreCLI@2
+            displayName: "Testing App"
+            inputs:
+              command: "test"
+              projects: "**/*[Tt]ests/*.csproj"
+              arguments: "-c Release"
+
+          - task: DotNetCoreCLI@2
+            displayName: "Create App Artifact"
+            inputs:
+              command: "publish"
+              publishWebProjects: false
+              projects: "**/*.csproj"
+              arguments: "--configuration Release --output $(Build.ArtifactStagingDirectory)"
+              modifyOutputPath: false
+
+          - publish: "$(Build.ArtifactStagingDirectory)"
+            artifact: $(Build.Repository.Name)
+            displayName: "Publishing Pipeline Artifact"
+            condition: ${{ variables.createArtifact }}
+
+  - stage: "Deploy"
+    displayName: "Deploy App"
+    condition: and(succeeded('Build'), ${{ variables.createArtifact }})
+    jobs:
+      - job: Deploy
+        displayName: Deploy App
+        steps:
+          - download: current
+            artifact: $(Build.Repository.Name)
+            patterns: |
+              **/*.zip
+
+          - task: AzureAppServiceManage@0
+            displayName: "Starting App Service"
+            inputs:
+              azureSubscription: "workshop-svc-conn"
+              Action: "Start Azure App Service"
+              WebAppName: "APP-WORKSHOP01"
+              SpecifySlotOrASE: true
+              ResourceGroupName: "RG-SAMPLE"
+              Slot: "stage"
+
+          - task: AzureRmWebAppDeployment@4
+            inputs:
+              ConnectionType: "AzureRM"
+              azureSubscription: "workshop-svc-conn"
+              appType: "webAppLinux"
+              WebAppName: "APP-WORKSHOP01"
+              deployToSlotOrASE: true
+              ResourceGroupName: "RG-SAMPLE"
+              SlotName: "stage"
+              packageForLinux: "$(Pipeline.Workspace)/$(Build.Repository.Name)/*.zip"
+
+      - job: Swap
+        displayName: "Swap Instances"
+        dependsOn: "Deploy"
+        steps:
+          - script: |
+              for counter in $(seq 1 20); do
+                status_code=$(curl --write-out %{http_code} --silent --output /dev/null https://app-workshop01-stage.azurewebsites.net)
+
+                if [[ "$status_code" -ne 200 ]] ; then
+                  echo "##vso[task.logissue type=error]Website cannot be swapped. It has an unhealthy status."
+                  exit 1
+                else
+                  echo "Request ${counter} was executed successfuly."
+                fi
+              done
+            displayName: "Validating site status"
+
+          - task: AzureAppServiceManage@0
+            inputs:
+              azureSubscription: "workshop-svc-conn"
+              Action: "Swap Slots"
+              WebAppName: "APP-WORKSHOP01"
+              ResourceGroupName: "RG-SAMPLE"
+              SourceSlot: "stage"
+
+          - task: AzureAppServiceManage@0
+            displayName: "Stop App Service"
+            inputs:
+              azureSubscription: "workshop-svc-conn"
+              Action: "Start Azure App Service"
+              WebAppName: "APP-WORKSHOP01"
+              SpecifySlotOrASE: true
+              ResourceGroupName: "RG-SAMPLE"
+              Slot: "stage"
